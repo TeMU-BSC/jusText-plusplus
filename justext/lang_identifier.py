@@ -1,3 +1,4 @@
+# From: https://github.com/TeMU-BSC/corpus-cleaner/blob/refactor/corpus_cleaner/lang_identifier.py
 from typing import Tuple
 import re
 import fasttext
