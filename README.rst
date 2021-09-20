@@ -1,5 +1,9 @@
 Private fork of: https://github.com/EleutherAI/jusText
 
+Goals:
+- Cascade of language identifiers instead of stopwords.
+- Built-in fix_text()
+
 .. _jusText: http://code.google.com/p/justext/
 .. _Python: http://www.python.org/
 .. _lxml: http://lxml.de/
