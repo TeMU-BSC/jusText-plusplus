@@ -73,7 +73,10 @@ Dependencies
 ::
 
   lxml>=2.2.4
+::
 
+    wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+    mv lid.176.bin lib/
 
 Usage
 -----
@@ -92,7 +95,7 @@ Python API
   import justext
 
   response = requests.get("http://planet.python.org/")
-  paragraphs = justext.justext(response.content, justext.get_stoplist("English"))
+  paragraphs = justext.justext(response.content, lang_id="en") #lang_id can also be a list like ["en", "es"]
   for paragraph in paragraphs:
     if not paragraph.is_boilerplate:
       print paragraph.text

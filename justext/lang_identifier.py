@@ -2,8 +2,10 @@
 from typing import Tuple
 import re
 import fasttext
-from corpus_cleaner.constants import FASTTEXT_PATH
-from langid.langid import LanguageIdentifier, model
+#from langid.langid import LanguageIdentifier, model
+import os
+
+FASTTEXT_PATH = os.path.join('lib', 'lid.176.bin')
 
 
 class LangIdentifier:

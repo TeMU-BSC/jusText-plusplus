@@ -17,14 +17,14 @@ from lxml.html.clean import Cleaner
 from xml.sax.handler import ContentHandler
 from .paragraph import Paragraph
 from ._compat import unicode, ignored
-from .utils import is_blank, get_stoplist, get_stoplists
+from .utils import is_blank
+from .lang_identifier import FasttextLangIdentifier
 
 
 MAX_LINK_DENSITY_DEFAULT = 0.2
 LENGTH_LOW_DEFAULT = 70
 LENGTH_HIGH_DEFAULT = 200
-STOPWORDS_LOW_DEFAULT = 0.30
-STOPWORDS_HIGH_DEFAULT = 0.32
+LANG_IDENT_CONFIDENCE = 0.8
 NO_HEADINGS_DEFAULT = False
 # Short and near-good headings within MAX_HEADING_DISTANCE characters before
 # a good paragraph are classified as good unless --no-headings is specified.
@@ -224,16 +224,17 @@ class PathInfo(object):
         return self
 
 
-def classify_paragraphs(paragraphs, stoplist, length_low=LENGTH_LOW_DEFAULT,
-        length_high=LENGTH_HIGH_DEFAULT, stopwords_low=STOPWORDS_LOW_DEFAULT,
-        stopwords_high=STOPWORDS_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
-        no_headings=NO_HEADINGS_DEFAULT):
+def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
+        length_high=LENGTH_HIGH_DEFAULT,
+        max_link_density=MAX_LINK_DENSITY_DEFAULT,
+        no_headings=NO_HEADINGS_DEFAULT, language_conf_th=LANG_IDENT_CONFIDENCE):
     "Context-free paragraph classification."
-
-    stoplist = frozenset(w.lower() for w in stoplist)
+    if type(lang_id)==str:
+        lang_id = [lang_id]
     for paragraph in paragraphs:
         length = len(paragraph)
-        stopword_density = paragraph.stopwords_density(stoplist)
+        identifier = FasttextLangIdentifier(True)
+        lang_ident = identifier.identify(paragraph.text)
         link_density = paragraph.links_density()
         paragraph.heading = bool(not no_headings and paragraph.is_heading)
 
@@ -248,13 +249,11 @@ def classify_paragraphs(paragraphs, stoplist, length_low=LENGTH_LOW_DEFAULT,
                 paragraph.cf_class = 'bad'
             else:
                 paragraph.cf_class = 'short'
-        elif stopword_density >= stopwords_high:
+        elif lang_ident[1] > language_conf_th and lang_ident[0] in lang_id:
             if length > length_high:
                 paragraph.cf_class = 'good'
             else:
                 paragraph.cf_class = 'neargood'
-        elif stopword_density >= stopwords_low:
-            paragraph.cf_class = 'neargood'
         else:
             paragraph.cf_class = 'bad'
 
@@ -357,12 +356,11 @@ def revise_paragraph_classification(paragraphs, max_heading_distance=MAX_HEADING
             j += 1
 
 
-def justext(html_text, stoplist, length_low=LENGTH_LOW_DEFAULT,
-        length_high=LENGTH_HIGH_DEFAULT, stopwords_low=STOPWORDS_LOW_DEFAULT,
-        stopwords_high=STOPWORDS_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
+def justext(html_text, lang_id, length_low=LENGTH_LOW_DEFAULT,
+        length_high=LENGTH_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
         max_heading_distance=MAX_HEADING_DISTANCE_DEFAULT, no_headings=NO_HEADINGS_DEFAULT,
         encoding=None, default_encoding=DEFAULT_ENCODING,
-        enc_errors=DEFAULT_ENC_ERRORS, preprocessor=preprocessor):
+        enc_errors=DEFAULT_ENC_ERRORS, preprocessor=preprocessor, language_conf_th=LANG_IDENT_CONFIDENCE):
     """
     Converts an HTML page into a list of classified paragraphs. Each paragraph
     is represented as instance of class ˙˙justext.paragraph.Paragraph˙˙.
@@ -372,8 +370,8 @@ def justext(html_text, stoplist, length_low=LENGTH_LOW_DEFAULT,
 
     paragraphs = ParagraphMaker.make_paragraphs(dom)
 
-    classify_paragraphs(paragraphs, stoplist, length_low, length_high,
-        stopwords_low, stopwords_high, max_link_density, no_headings)
+    classify_paragraphs(paragraphs, lang_id, length_low, length_high,
+         max_link_density, no_headings, language_conf_th)
     revise_paragraph_classification(paragraphs, max_heading_distance)
 
     return paragraphs
