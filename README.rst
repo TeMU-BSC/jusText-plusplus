@@ -1,3 +1,5 @@
+Private fork of: https://github.com/EleutherAI/jusText
+
 .. _jusText: http://code.google.com/p/justext/
 .. _Python: http://www.python.org/
 .. _lxml: http://lxml.de/
