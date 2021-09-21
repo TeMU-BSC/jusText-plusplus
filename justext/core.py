@@ -18,7 +18,7 @@ from xml.sax.handler import ContentHandler
 from .paragraph import Paragraph
 from ._compat import unicode, ignored
 from .utils import is_blank
-from .lang_identifier import FasttextLangIdentifier
+from .lang_identifier import FasttextLangIdentifier, LangIdLangIdentifier
 
 
 MAX_LINK_DENSITY_DEFAULT = 0.2
@@ -231,10 +231,11 @@ def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
     "Context-free paragraph classification."
     if type(lang_id)==str:
         lang_id = [lang_id]
+    identifier1 = FasttextLangIdentifier(True)
+    identifier2 = LangIdLangIdentifier(True)
     for paragraph in paragraphs:
         length = len(paragraph)
-        identifier = FasttextLangIdentifier(True)
-        lang_ident = identifier.identify(paragraph.text)
+        lang_ident = identifier1.identify(paragraph.text)
         link_density = paragraph.links_density()
         paragraph.heading = bool(not no_headings and paragraph.is_heading)
 
@@ -251,9 +252,13 @@ def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
                 paragraph.cf_class = 'short'
         elif lang_ident[1] > language_conf_th and lang_ident[0] in lang_id:
             if length > length_high:
-                paragraph.cf_class = 'good'
+                last_check = identifier2.identify(paragraph.text)
+                if last_check[1] > language_conf_th and last_check[0] == lang_ident[0]:
+                    paragraph.cf_class = 'good'
             else:
                 paragraph.cf_class = 'neargood'
+            if length < length_low:
+                paragraph.cf_class = 'short'
         else:
             paragraph.cf_class = 'bad'
 

@@ -2,7 +2,7 @@
 from typing import Tuple
 import re
 import fasttext
-#from langid.langid import LanguageIdentifier, model
+from langid.langid import LanguageIdentifier, model
 import os
 
 FASTTEXT_PATH = os.path.join('lib', 'lid.176.bin')
