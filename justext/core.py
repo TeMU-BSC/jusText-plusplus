@@ -223,19 +223,30 @@ class PathInfo(object):
         self._elements.pop()
         return self
 
+class LanguageIdentifiers(object):
+    def __init__(self, replace_urls: bool, lang_id):
+        self.identifier1 = FasttextLangIdentifier(replace_urls)
+        self.identifier2 = LangIdLangIdentifier(replace_urls)
+        self.lang_id = lang_id
+        if type(self.lang_id) == str:
+            self.lang_id = [self.lang_id]
+
+    def identify(self, text, language_conf_th=LANG_IDENT_CONFIDENCE):
+        test1 = self.identifier1.identify(text)
+        if test1[1] > language_conf_th and test1[0] in self.lang_id:
+            test2 = self.identifier2.identify(text)
+            if test2[1] > language_conf_th and test2[0] == test1[0]:
+                return True
+        return False
 
 def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
         length_high=LENGTH_HIGH_DEFAULT,
         max_link_density=MAX_LINK_DENSITY_DEFAULT,
         no_headings=NO_HEADINGS_DEFAULT, language_conf_th=LANG_IDENT_CONFIDENCE):
     "Context-free paragraph classification."
-    if type(lang_id)==str:
-        lang_id = [lang_id]
-    identifier1 = FasttextLangIdentifier(True)
-    identifier2 = LangIdLangIdentifier(True)
+    identifier = LanguageIdentifiers(True, lang_id)
     for paragraph in paragraphs:
         length = len(paragraph)
-        lang_ident = identifier1.identify(paragraph.text)
         link_density = paragraph.links_density()
         paragraph.heading = bool(not no_headings and paragraph.is_heading)
 
@@ -250,11 +261,9 @@ def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
                 paragraph.cf_class = 'bad'
             else:
                 paragraph.cf_class = 'short'
-        elif lang_ident[1] > language_conf_th and lang_ident[0] in lang_id:
+        elif identifier.identify(paragraph.text, language_conf_th):
             if length > length_high:
-                last_check = identifier2.identify(paragraph.text)
-                if last_check[1] > language_conf_th and last_check[0] == lang_ident[0]:
-                    paragraph.cf_class = 'good'
+                paragraph.cf_class = 'good'
             else:
                 paragraph.cf_class = 'neargood'
             if length < length_low:
