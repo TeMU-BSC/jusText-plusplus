@@ -224,32 +224,32 @@ class PathInfo(object):
         return self
 
 class LanguageIdentifiers(object):
-    def __init__(self, replace_urls: bool, lang_id):
+    def __init__(self, replace_urls: bool, lang_id, language_conf_th=LANG_IDENT_CONFIDENCE):
         self.identifier1 = FasttextLangIdentifier(replace_urls)
         self.identifier2 = LangIdLangIdentifier(replace_urls)
+        self.language_conf_th = language_conf_th
         self.lang_id = lang_id
         if type(self.lang_id) == str:
             self.lang_id = [self.lang_id]
 
-    def identify(self, text, language_conf_th=LANG_IDENT_CONFIDENCE):
-        test1 = self.identifier1.identify(text)
-        if test1[1] > language_conf_th and test1[0] in self.lang_id:
-            test2 = self.identifier2.identify(text)
-            if test2[1] > language_conf_th and test2[0] == test1[0]:
-                return True
-        return False
+    def identify(self, text):
+        lang1, conf1 = self.identifier1.identify(text)
+        if conf1 > self.language_conf_th and lang1 in self.lang_id:
+            lang2, conf2 = self.identifier2.identify(text)
+            if conf2 > self.language_conf_th and lang1 == lang2:
+                return True, lang1
+        return False, None
 
-def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
+def classify_paragraphs(paragraphs, identifier, length_low=LENGTH_LOW_DEFAULT,
         length_high=LENGTH_HIGH_DEFAULT,
         max_link_density=MAX_LINK_DENSITY_DEFAULT,
-        no_headings=NO_HEADINGS_DEFAULT, language_conf_th=LANG_IDENT_CONFIDENCE):
+        no_headings=NO_HEADINGS_DEFAULT):
     "Context-free paragraph classification."
-    identifier = LanguageIdentifiers(True, lang_id)
     for paragraph in paragraphs:
         length = len(paragraph)
         link_density = paragraph.links_density()
         paragraph.heading = bool(not no_headings and paragraph.is_heading)
-
+        identified, paragraph.lang = identifier.identify(paragraph.text)
         if link_density > max_link_density:
             paragraph.cf_class = 'bad'
         elif ('\xa9' in paragraph.text) or ('&copy' in paragraph.text):
@@ -261,7 +261,7 @@ def classify_paragraphs(paragraphs, lang_id, length_low=LENGTH_LOW_DEFAULT,
                 paragraph.cf_class = 'bad'
             else:
                 paragraph.cf_class = 'short'
-        elif identifier.identify(paragraph.text, language_conf_th):
+        elif identified:
             if length > length_high:
                 paragraph.cf_class = 'good'
             else:
@@ -382,10 +382,11 @@ def justext(html_text, lang_id, length_low=LENGTH_LOW_DEFAULT,
     dom = html_to_dom(html_text, default_encoding, encoding, enc_errors)
     dom = preprocessor(dom)
 
+    identifier = LanguageIdentifiers(True, lang_id, language_conf_th)
     paragraphs = ParagraphMaker.make_paragraphs(dom)
 
-    classify_paragraphs(paragraphs, lang_id, length_low, length_high,
-         max_link_density, no_headings, language_conf_th)
+    classify_paragraphs(paragraphs, identifier, length_low, length_high,
+         max_link_density, no_headings)
     revise_paragraph_classification(paragraphs, max_heading_distance)
 
     return paragraphs
