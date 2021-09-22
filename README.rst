@@ -94,8 +94,9 @@ Python API
   import requests
   import justext
 
+  jt = JusText(lang_id="en") #lang_id can also be a list like ["en", "es"]
   response = requests.get("http://planet.python.org/")
-  paragraphs = justext.justext(response.content, lang_id="en") #lang_id can also be a list like ["en", "es"]
+  paragraphs = jt.justext(response.content)
   for paragraph in paragraphs:
     if not paragraph.is_boilerplate:
       print paragraph.text

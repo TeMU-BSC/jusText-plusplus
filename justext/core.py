@@ -24,7 +24,8 @@ from .lang_identifier import FasttextLangIdentifier, LangIdLangIdentifier
 MAX_LINK_DENSITY_DEFAULT = 0.2
 LENGTH_LOW_DEFAULT = 70
 LENGTH_HIGH_DEFAULT = 200
-LANG_IDENT_CONFIDENCE = 0.8
+FT_CONFIDENCE = 0.3
+LANGID_CONFIDENCE = 0.9
 NO_HEADINGS_DEFAULT = False
 # Short and near-good headings within MAX_HEADING_DISTANCE characters before
 # a good paragraph are classified as good unless --no-headings is specified.
@@ -224,19 +225,20 @@ class PathInfo(object):
         return self
 
 class LanguageIdentifiers(object):
-    def __init__(self, replace_urls: bool, lang_id, language_conf_th=LANG_IDENT_CONFIDENCE):
-        self.identifier1 = FasttextLangIdentifier(replace_urls)
-        self.identifier2 = LangIdLangIdentifier(replace_urls)
-        self.language_conf_th = language_conf_th
+    def __init__(self, replace_urls: bool, lang_id, ft_conf=FT_CONFIDENCE, langid_conf=LANGID_CONFIDENCE):
+        self.fasttext_id = FasttextLangIdentifier(replace_urls)
+        self.langid_id = LangIdLangIdentifier(replace_urls)
+        self.ft_conf = ft_conf
+        self.langid_conf=langid_conf
         self.lang_id = lang_id
         if type(self.lang_id) == str:
             self.lang_id = [self.lang_id]
 
     def identify(self, text):
-        lang1, conf1 = self.identifier1.identify(text)
-        if conf1 > self.language_conf_th and lang1 in self.lang_id:
-            lang2, conf2 = self.identifier2.identify(text)
-            if conf2 > self.language_conf_th and lang1 == lang2:
+        lang1, conf1 = self.fasttext_id.identify(text)
+        if conf1 > self.ft_conf and lang1 in self.lang_id:
+            lang2, conf2 = self.langid_id.identify(text)
+            if conf2 > self.langid_conf and lang1 == lang2:
                 return True, lang1
         return False, None
 
@@ -370,23 +372,26 @@ def revise_paragraph_classification(paragraphs, max_heading_distance=MAX_HEADING
             j += 1
 
 
-def justext(html_text, lang_id, length_low=LENGTH_LOW_DEFAULT,
-        length_high=LENGTH_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
-        max_heading_distance=MAX_HEADING_DISTANCE_DEFAULT, no_headings=NO_HEADINGS_DEFAULT,
-        encoding=None, default_encoding=DEFAULT_ENCODING,
-        enc_errors=DEFAULT_ENC_ERRORS, preprocessor=preprocessor, language_conf_th=LANG_IDENT_CONFIDENCE):
-    """
-    Converts an HTML page into a list of classified paragraphs. Each paragraph
-    is represented as instance of class ˙˙justext.paragraph.Paragraph˙˙.
-    """
-    dom = html_to_dom(html_text, default_encoding, encoding, enc_errors)
-    dom = preprocessor(dom)
+class JusText():
+    def __init__(self, lang_id, ft_conf=FT_CONFIDENCE, langid_conf=LANGID_CONFIDENCE):
+        self.identifier = LanguageIdentifiers(True, lang_id, ft_conf, langid_conf)
 
-    identifier = LanguageIdentifiers(True, lang_id, language_conf_th)
-    paragraphs = ParagraphMaker.make_paragraphs(dom)
+    def justext(self, html_text, length_low=LENGTH_LOW_DEFAULT,
+                length_high=LENGTH_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
+                max_heading_distance=MAX_HEADING_DISTANCE_DEFAULT, no_headings=NO_HEADINGS_DEFAULT,
+                encoding=None, default_encoding=DEFAULT_ENCODING,
+                enc_errors=DEFAULT_ENC_ERRORS, preprocessor=preprocessor):
+        """
+        Converts an HTML page into a list of classified paragraphs. Each paragraph
+        is represented as instance of class ˙˙justext.paragraph.Paragraph˙˙.
+        """
+        dom = html_to_dom(html_text, default_encoding, encoding, enc_errors)
+        dom = preprocessor(dom)
 
-    classify_paragraphs(paragraphs, identifier, length_low, length_high,
-         max_link_density, no_headings)
-    revise_paragraph_classification(paragraphs, max_heading_distance)
+        paragraphs = ParagraphMaker.make_paragraphs(dom)
 
-    return paragraphs
+        classify_paragraphs(paragraphs, self.identifier, length_low, length_high,
+                            max_link_density, no_headings)
+        revise_paragraph_classification(paragraphs, max_heading_distance)
+
+        return paragraphs
