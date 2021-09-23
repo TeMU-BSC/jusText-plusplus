@@ -99,7 +99,7 @@ Python API
   paragraphs = jt.justext(response.content)
   for paragraph in paragraphs:
     if not paragraph.is_boilerplate:
-      print paragraph.text
+      print paragraph.text #paragraph.lang is also an attribute
 
 
 Testing
