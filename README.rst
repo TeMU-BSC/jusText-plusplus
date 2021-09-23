@@ -94,7 +94,7 @@ Python API
   import requests
   import justext
 
-  jt = JusText(lang_id="en") #lang_id can also be a list like ["en", "es"]
+  jt = JusText(lang="en", mode="langid") #for langid mode, lang can also be a list like ["en", "es"]
   response = requests.get("http://planet.python.org/")
   paragraphs = jt.justext(response.content)
   for paragraph in paragraphs:

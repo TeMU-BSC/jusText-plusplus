@@ -17,7 +17,7 @@ from lxml.html.clean import Cleaner
 from xml.sax.handler import ContentHandler
 from .paragraph import Paragraph
 from ._compat import unicode, ignored
-from .utils import is_blank
+from .utils import is_blank, get_stoplist
 from .lang_identifier import FasttextLangIdentifier, LangIdLangIdentifier
 
 
@@ -26,6 +26,8 @@ LENGTH_LOW_DEFAULT = 70
 LENGTH_HIGH_DEFAULT = 200
 FT_CONFIDENCE = 0.3
 LANGID_CONFIDENCE = 0.9
+STOPWORDS_LOW_DEFAULT = 0.30
+STOPWORDS_HIGH_DEFAULT = 0.32
 NO_HEADINGS_DEFAULT = False
 # Short and near-good headings within MAX_HEADING_DISTANCE characters before
 # a good paragraph are classified as good unless --no-headings is specified.
@@ -242,16 +244,18 @@ class LanguageIdentifiers(object):
                 return True, lang1
         return False, None
 
-def classify_paragraphs(paragraphs, identifier, length_low=LENGTH_LOW_DEFAULT,
-        length_high=LENGTH_HIGH_DEFAULT,
-        max_link_density=MAX_LINK_DENSITY_DEFAULT,
-        no_headings=NO_HEADINGS_DEFAULT):
+def classify_paragraphs(paragraphs, lang, identifier, stoplist,
+                        mode="langid", length_low=LENGTH_LOW_DEFAULT,
+                        length_high=LENGTH_HIGH_DEFAULT, stopwords_low=STOPWORDS_LOW_DEFAULT,
+                        stopwords_high=STOPWORDS_HIGH_DEFAULT,
+                        max_link_density=MAX_LINK_DENSITY_DEFAULT,
+                        no_headings=NO_HEADINGS_DEFAULT):
     "Context-free paragraph classification."
     for paragraph in paragraphs:
+        paragraph.lang = None
         length = len(paragraph)
         link_density = paragraph.links_density()
         paragraph.heading = bool(not no_headings and paragraph.is_heading)
-        identified, paragraph.lang = identifier.identify(paragraph.text)
         if link_density > max_link_density:
             paragraph.cf_class = 'bad'
         elif ('\xa9' in paragraph.text) or ('&copy' in paragraph.text):
@@ -263,15 +267,31 @@ def classify_paragraphs(paragraphs, identifier, length_low=LENGTH_LOW_DEFAULT,
                 paragraph.cf_class = 'bad'
             else:
                 paragraph.cf_class = 'short'
-        elif identified:
-            if length > length_high:
-                paragraph.cf_class = 'good'
-            else:
-                paragraph.cf_class = 'neargood'
-            if length < length_low:
-                paragraph.cf_class = 'short'
         else:
-            paragraph.cf_class = 'bad'
+            if mode == "langid":
+                identified, paragraph.lang = identifier.identify(paragraph.text)
+                if identified:
+                    if length > length_high:
+                        paragraph.cf_class = 'good'
+                    else:
+                        paragraph.cf_class = 'neargood'
+                    if length < length_low:
+                        paragraph.cf_class = 'short'
+                else:
+                    paragraph.cf_class = 'bad'
+            elif mode == "stopwords":
+                stopword_density = paragraph.stopwords_density(stoplist)
+                if stopword_density >= stopwords_high:
+                    paragraph.lang = lang
+                    if length > length_high:
+                        paragraph.cf_class = 'good'
+                    else:
+                        paragraph.cf_class = 'neargood'
+                elif stopword_density >= stopwords_low:
+                    paragraph.lang = lang
+                    paragraph.cf_class = 'neargood'
+                else:
+                    paragraph.cf_class = 'bad'
 
 
 def _get_neighbour(i, paragraphs, ignore_neargood, inc, boundary):
@@ -373,11 +393,21 @@ def revise_paragraph_classification(paragraphs, max_heading_distance=MAX_HEADING
 
 
 class JusText():
-    def __init__(self, lang_id, ft_conf=FT_CONFIDENCE, langid_conf=LANGID_CONFIDENCE):
-        self.identifier = LanguageIdentifiers(True, lang_id, ft_conf, langid_conf)
+    def __init__(self, lang, mode="langid", ft_conf=FT_CONFIDENCE, langid_conf=LANGID_CONFIDENCE):
+        self.mode = mode
+        self.lang = lang
+        if mode == "langid":
+            self.identifier = LanguageIdentifiers(True, lang, ft_conf, langid_conf)
+            self.stoplist = None
+        elif mode == "stopwords":
+            if type(lang) != str:
+                raise RuntimeError("If mode=stopwords, you can just provide 1 language as a string")
+            self.stoplist = get_stoplist(lang)
+            self.identifier = None
 
     def justext(self, html_text, length_low=LENGTH_LOW_DEFAULT,
-                length_high=LENGTH_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
+                length_high=LENGTH_HIGH_DEFAULT, stopwords_low=STOPWORDS_LOW_DEFAULT,
+                stopwords_high=STOPWORDS_HIGH_DEFAULT, max_link_density=MAX_LINK_DENSITY_DEFAULT,
                 max_heading_distance=MAX_HEADING_DISTANCE_DEFAULT, no_headings=NO_HEADINGS_DEFAULT,
                 encoding=None, default_encoding=DEFAULT_ENCODING,
                 enc_errors=DEFAULT_ENC_ERRORS, preprocessor=preprocessor):
@@ -390,8 +420,8 @@ class JusText():
 
         paragraphs = ParagraphMaker.make_paragraphs(dom)
 
-        classify_paragraphs(paragraphs, self.identifier, length_low, length_high,
-                            max_link_density, no_headings)
+        classify_paragraphs(paragraphs, self.lang, self.identifier, self.stoplist, self.mode, length_low, length_high, stopwords_low,
+        stopwords_high, max_link_density, no_headings)
         revise_paragraph_classification(paragraphs, max_heading_distance)
 
         return paragraphs
