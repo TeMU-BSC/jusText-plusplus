@@ -6,7 +6,7 @@ from langid.langid import LanguageIdentifier, model
 import os
 
 # FASTTEXT_PATH = os.path.join('lib', 'lid.176.bin')
-FASTTEXT_PATH = os.path.join(os.path.expanduser('~'), 'lid.176.bin')
+FASTTEXT_PATH = os.path.join(os.path.expanduser('~'), 'mylib', 'lid.176.bin')
 
 
 class LangIdentifier:
